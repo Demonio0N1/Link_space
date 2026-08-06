@@ -1,0 +1,42 @@
+{
+  "name": "carpeta-share",
+  "displayName": "Carpeta Share",
+  "description": "Comparte carpetas por SSH/Tailscale con un enlace vscode:// (usa el CLI carpeta-share)",
+  "version": "1.0.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "carpetaShare.compartir",
+        "title": "Compartir carpeta…"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "carpetaShare.compartir",
+          "when": "explorerResourceIsFolder",
+          "group": "7_modification"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0"
+  }
+}

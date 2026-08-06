@@ -1,0 +1,10 @@
+# Configuración local de Claude Code
+.claude/
+
+# Extensión de VS Code: dependencias y compilados
+carpeta-share/vscode-extension/node_modules/
+carpeta-share/vscode-extension/out/
+carpeta-share/vscode-extension/*.vsix
+
+# Sistema
+.DS_Store
