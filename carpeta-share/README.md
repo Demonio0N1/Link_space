@@ -276,6 +276,17 @@ significa que puede consumir CPU/RAM/disco y acceder a Internet desde tu IP.
 Comparte solo con gente en la que confíes a ese nivel. Revisa además que tu
 home no sea legible por otros (`chmod 750 ~` si hace falta; el CLI te avisa).
 
+## Actualizar
+
+```bash
+carpeta-share actualizar     # o: linkspace actualizar
+```
+
+Hace `git pull` en el repositorio, reinstala los comandos y actualiza la
+extensión de VS Code, sin preguntas. (Equivale a `./setup.sh --actualizar`
+dentro del repo.) Tu configuración, invitados y carpetas compartidas no se
+tocan.
+
 ## Desinstalar
 
 ```bash

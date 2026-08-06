@@ -19,10 +19,13 @@ if [[ ! -x "$CLI" ]]; then
   exit 1
 fi
 
-# 'linkspace panel' abre el panel de conexiones (ver/cerrar accesos en vivo).
-if [[ "${1:-}" == "panel" ]]; then
-  exec "$CLI" panel
-fi
+# Subcomandos que delegan en el CLI:
+#   linkspace panel       → panel de conexiones (ver/cerrar accesos en vivo)
+#   linkspace actualizar  → git pull + reinstalar la última versión
+case "${1:-}" in
+  panel)              exec "$CLI" panel;;
+  actualizar|update)  exec "$CLI" actualizar;;
+esac
 
 # Acepta una ruta opcional; sin argumentos comparte la carpeta actual.
 CARPETA="${1:-$PWD}"

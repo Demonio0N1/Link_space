@@ -60,6 +60,36 @@ if [[ "${1:-}" == "--uninstall" ]]; then
 fi
 
 # =============================================================================
+# Actualización rápida: git pull + reinstalar binarios/extensión, sin preguntas.
+# También disponible desde cualquier carpeta como: carpeta-share actualizar
+# =============================================================================
+if [[ "${1:-}" == "--actualizar" ]]; then
+  info "Actualizando carpeta-share…"
+  if git -C "$AQUI" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$AQUI" pull --ff-only || aviso "No pude hacer git pull; instalaré la versión local tal cual."
+  else
+    aviso "Esta copia no es un clon de git; instalo la versión local tal cual."
+  fi
+  sudo install -m 0755 "$AQUI/bin/carpeta-share" "$DESTINO_CLI"
+  sudo install -m 0755 "$AQUI/bin/linkspace" "$DESTINO_LINKSPACE"
+  mkdir -p "$HOME/.config/carpeta-share"
+  printf '%s\n' "$AQUI" > "$HOME/.config/carpeta-share/ruta_instalacion"
+  # Extensión de VS Code: recompilar e instalar en silencio si se puede.
+  if command -v npm >/dev/null 2>&1 && [[ -d "$AQUI/vscode-extension" ]]; then
+    if (cd "$AQUI/vscode-extension" \
+        && npm install --no-audit --no-fund >/dev/null 2>&1 \
+        && npm run compile >/dev/null 2>&1 \
+        && npx --yes @vscode/vsce package --allow-missing-repository -o carpeta-share.vsix >/dev/null 2>&1) \
+       && CODE="$(buscar_code)"; then
+      "$CODE" --install-extension "$AQUI/vscode-extension/carpeta-share.vsix" >/dev/null 2>&1 \
+        && ok "Extensión de VS Code actualizada." || true
+    fi
+  fi
+  ok "Actualizado a la versión $("$DESTINO_CLI" version)."
+  exit 0
+fi
+
+# =============================================================================
 # 1. Dependencias
 # =============================================================================
 info "Sistema detectado: $SO"
@@ -154,6 +184,9 @@ sudo install -m 0755 "$AQUI/bin/carpeta-share" "$DESTINO_CLI"
 sudo install -m 0755 "$AQUI/bin/linkspace" "$DESTINO_LINKSPACE"
 mkdir -p "$HOME/.config/carpeta-share"
 [[ -f "$HOME/.config/carpeta-share/estado.json" ]] || printf '{"invitados": {}, "carpetas": [], "config": {}}\n' > "$HOME/.config/carpeta-share/estado.json"
+# Recordamos dónde vive el repo para que 'carpeta-share actualizar' funcione
+# desde cualquier carpeta.
+printf '%s\n' "$AQUI" > "$HOME/.config/carpeta-share/ruta_instalacion"
 ok "CLI instalado. Prueba: carpeta-share estado  ·  o dentro de una carpeta: linkspace"
 
 # =============================================================================

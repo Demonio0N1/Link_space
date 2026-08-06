@@ -20,7 +20,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.2.1"
 PREFIJO="cs-"                      # prefijo de los usuarios invitados del sistema
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -1184,6 +1184,19 @@ for w in e.get("web", []):
   printf '\nRecuerda: para el modo VS Code escritorio el invitado debe aceptar tu nodo\ncompartido de Tailscale (https://login.tailscale.com/admin/machines → ⋯ → Share).\nLos enlaces web no lo necesitan.\n'
 }
 
+cmd_actualizar() {
+  # Delegamos en setup.sh --actualizar del repo (git pull + reinstalar).
+  local rp=""
+  if [[ -f "$CONFIG_DIR/ruta_instalacion" ]]; then
+    rp="$(cat "$CONFIG_DIR/ruta_instalacion")"
+  fi
+  if [[ -z "$rp" || ! -f "$rp/setup.sh" ]]; then
+    err "No sé dónde está el repositorio. Entra a la carpeta del proyecto y corre: git pull && ./setup.sh --actualizar"
+  fi
+  info "Actualizando desde $rp…"
+  exec bash "$rp/setup.sh" --actualizar
+}
+
 cmd_listar_invitados() {
   # Solo invitados con acceso SSH (los de modo "web" no sirven para enlaces
   # vscode://, que es donde consume esta lista la extensión).
@@ -1375,6 +1388,9 @@ USO:
   carpeta-share invitado agregar <nombre> "<llave-publica-ssh>"
   carpeta-share invitado suspender|reactivar|eliminar <nombre>
   carpeta-share estado
+  carpeta-share actualizar
+      Trae la última versión del repositorio y reinstala (git pull + setup).
+      Atajo: linkspace actualizar
 
 OPCIONES GLOBALES:
   --si     no pedir confirmaciones
@@ -1403,6 +1419,7 @@ main() {
     dejar-de-compartir)  cmd_dejar_de_compartir "$@";;
     estado)              cmd_estado;;
     panel)               cmd_panel;;
+    actualizar)          cmd_actualizar;;
     listar-invitados)    cmd_listar_invitados;;
     invitado)
       local SUB="${1:-}"
