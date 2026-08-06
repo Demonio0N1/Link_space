@@ -13,6 +13,7 @@ SO="$(uname -s)"
 es_macos() { [[ "$SO" == "Darwin" ]]; }
 
 DESTINO_CLI="/usr/local/bin/carpeta-share"
+DESTINO_LINKSPACE="/usr/local/bin/linkspace"
 WF_DIR="$HOME/Library/Services/Compartir carpeta con VS Code.workflow"
 NAUTILUS_SCRIPT="$HOME/.local/share/nautilus/scripts/Compartir carpeta con VS Code"
 DOLPHIN_MENU="$HOME/.local/share/kio/servicemenus/carpeta-share.desktop"
@@ -46,7 +47,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
       err "Desinstalación detenida para no dejar accesos huérfanos."
     fi
   fi
-  sudo rm -f "$DESTINO_CLI" && ok "CLI eliminado."
+  sudo rm -f "$DESTINO_CLI" "$DESTINO_LINKSPACE" && ok "CLI y linkspace eliminados."
   rm -rf "$WF_DIR" && ok "Quick Action de Finder eliminada."
   rm -f "$NAUTILUS_SCRIPT" "$DOLPHIN_MENU" 2>/dev/null || true
   if CODE="$(buscar_code)"; then
@@ -150,9 +151,10 @@ fi
 # =============================================================================
 info "Instalando CLI en $DESTINO_CLI…"
 sudo install -m 0755 "$AQUI/bin/carpeta-share" "$DESTINO_CLI"
+sudo install -m 0755 "$AQUI/bin/linkspace" "$DESTINO_LINKSPACE"
 mkdir -p "$HOME/.config/carpeta-share"
 [[ -f "$HOME/.config/carpeta-share/estado.json" ]] || printf '{"invitados": {}, "carpetas": [], "config": {}}\n' > "$HOME/.config/carpeta-share/estado.json"
-ok "CLI instalado. Prueba: carpeta-share estado"
+ok "CLI instalado. Prueba: carpeta-share estado  ·  o dentro de una carpeta: linkspace"
 
 # =============================================================================
 # 4. Clic derecho en el gestor de archivos
@@ -422,6 +424,10 @@ cat <<RESUMEN
 Próximos pasos:
  1. Enciende Tailscale e inicia sesión:   tailscale up   (o abre la app)
  2. Comparte una carpeta (el flujo siempre ofrece las opciones):
+      * ATAJO: entra a la carpeta y escribe:
+          cd ~/Proyectos/algo && linkspace
+        (pregunta si quieres contraseña generada, la tuya, o sin contraseña,
+         y te deja el enlace en el portapapeles)
       * MODO WEB (el invitado NO instala nada; URL con o sin contraseña):
           carpeta-share compartir ~/Proyectos/algo --web --con-contrasena
         La primera vez, Tailscale te pedirá habilitar Funnel y HTTPS en tu

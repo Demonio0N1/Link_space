@@ -51,10 +51,31 @@ el modo escritorio usa SSH por llave dentro de Tailscale con enlaces
 
 ## Compartir una carpeta
 
+### El atajo: `linkspace`
+
+Entra a la carpeta y escribe una sola palabra:
+
+```
+$ cd ~/Proyectos/tesis
+$ linkspace
+📁 Carpeta a compartir: /Users/tu/Proyectos/tesis
+
+¿Proteger el enlace con contraseña?
+  1) Sí, generar una segura (recomendado)
+  2) Sí, escribir la mía
+  3) No — cualquiera con el enlace podrá entrar
+
+Opción [1]:
+```
+
+Y obtienes la URL (ya copiada al portapapeles) con la contraseña elegida.
+También acepta una ruta: `linkspace ~/otra/carpeta`.
+
 ### Modo web — el invitado NO instala nada
 
 ```bash
-carpeta-share compartir ~/Proyectos/tesis --web --con-contrasena   # recomendado
+carpeta-share compartir ~/Proyectos/tesis --web --con-contrasena   # contraseña generada
+carpeta-share compartir ~/Proyectos/tesis --web --contrasena "MiClave123"  # la tuya
 carpeta-share compartir ~/Proyectos/tesis --web --sin-contrasena   # URL abierta
 ```
 

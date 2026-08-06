@@ -109,17 +109,19 @@ confirmar() {
 # VS Code) usamos el diálogo gráfico de administrador del sistema.
 asegurar_root() {
   if [[ $EUID -eq 0 ]]; then return 0; fi
+  # CS_CONTRASENA viaja por entorno (no por argumentos) para que una
+  # contraseña personalizada no quede visible en la lista de procesos.
   if [[ -t 0 ]]; then
     info "Se necesitan permisos de administrador…"
-    exec sudo env CS_USUARIO="$USUARIO_REAL" "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"}
+    exec sudo env CS_USUARIO="$USUARIO_REAL" CS_CONTRASENA="${CS_CONTRASENA:-}" "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"}
   fi
   if es_macos; then
     local cmd esc
-    cmd="CS_USUARIO=$(printf %q "$USUARIO_REAL") $(printf '%q ' "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"})"
+    cmd="CS_USUARIO=$(printf %q "$USUARIO_REAL") CS_CONTRASENA=$(printf %q "${CS_CONTRASENA:-}") $(printf '%q ' "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"})"
     esc="${cmd//\\/\\\\}"; esc="${esc//\"/\\\"}"
     exec osascript -e "do shell script \"$esc\" with administrator privileges"
   elif command -v pkexec >/dev/null 2>&1; then
-    exec pkexec env CS_USUARIO="$USUARIO_REAL" DISPLAY="${DISPLAY:-}" XAUTHORITY="${XAUTHORITY:-}" "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"}
+    exec pkexec env CS_USUARIO="$USUARIO_REAL" CS_CONTRASENA="${CS_CONTRASENA:-}" DISPLAY="${DISPLAY:-}" XAUTHORITY="${XAUTHORITY:-}" "$0" ${ARGS_ORIGINALES[@]+"${ARGS_ORIGINALES[@]}"}
   fi
   err "Necesito permisos de administrador: ejecuta este comando con sudo desde una terminal."
 }
@@ -760,8 +762,8 @@ web_iniciar() {
 }
 
 compartir_web() {
-  # compartir_web <carpeta> <con> <conpw> <sinpw>
-  local carpeta="$1" con="$2" conpw="$3" sinpw="$4"
+  # compartir_web <carpeta> <con> <conpw> <sinpw> [contraseña-personalizada]
+  local carpeta="$1" con="$2" conpw="$3" sinpw="$4" pwpersonal="${5:-}"
   local nombre usuario existente pl pp pw host url resto
   asegurar_root
 
@@ -806,6 +808,9 @@ if not any(x["ruta"] == arg[0] and x["invitado"] == arg[1] for x in e["carpetas"
   if [[ $sinpw -eq 1 ]]; then
     pw=""
     aviso "Enlace SIN contraseña: cualquiera que consiga la URL podrá entrar."
+  elif [[ -n "$pwpersonal" ]]; then
+    if [[ ${#pwpersonal} -lt 8 ]]; then err "La contraseña debe tener al menos 8 caracteres."; fi
+    pw="$pwpersonal"
   elif [[ -z "$pw" ]]; then
     pw="$(generar_contrasena)"
   fi
@@ -851,6 +856,7 @@ e["web"].append({"ruta": arg[0], "invitado": arg[1], "puerto_local": int(arg[2])
 
 cmd_compartir() {
   local carpeta="" con="" sinclave=0 nombre_nuevo="" paquete="" web=0 conpw=0 sinpw=0
+  local pwpersonal="${CS_CONTRASENA:-}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --con) con="${2:-}"; shift 2 || err "Falta el nombre tras --con";;
@@ -860,12 +866,13 @@ cmd_compartir() {
       --web) web=1; shift;;
       --con-contrasena) conpw=1; shift;;
       --sin-contrasena) sinpw=1; shift;;
+      --contrasena) pwpersonal="${2:-}"; shift 2 || err "Falta el valor tras --contrasena";;
       --gui|--si|--json) shift;;
       -*) err "Opción desconocida: $1";;
       *) carpeta="$1"; shift;;
     esac
   done
-  if [[ $conpw -eq 1 || $sinpw -eq 1 ]]; then web=1; fi
+  if [[ $conpw -eq 1 || $sinpw -eq 1 || -n "$pwpersonal" ]]; then web=1; fi
   [[ -n "$carpeta" ]] || err "Uso: carpeta-share compartir <carpeta> [--con <invitado> | --sin-clave [nombre]]"
   carpeta="$(ruta_absoluta "$carpeta")"
   [[ -d "$carpeta" ]] || err "No es una carpeta: $carpeta"
@@ -927,7 +934,14 @@ cmd_compartir() {
   ARGS_ORIGINALES+=(--si)
 
   if [[ $web -eq 1 ]]; then
-    compartir_web "$carpeta" "$con" "$conpw" "$sinpw"
+    # Validamos ANTES de escalar a root para no pedir permisos en vano.
+    if [[ -n "$pwpersonal" && ${#pwpersonal} -lt 8 ]]; then
+      err "La contraseña debe tener al menos 8 caracteres."
+    fi
+    # La contraseña personalizada viaja por entorno hacia la posible
+    # re-ejecución con root (asegurar_root), nunca por argumentos.
+    export CS_CONTRASENA="$pwpersonal"
+    compartir_web "$carpeta" "$con" "$conpw" "$sinpw" "$pwpersonal"
     return
   fi
 
@@ -1186,8 +1200,12 @@ USO:
       Comparte la carpeta y genera un enlace (queda en el portapapeles).
 
       MODO WEB — el invitado NO instala nada (abre la URL en su navegador):
-        --web --con-contrasena   URL https protegida con contraseña (recomendado)
+        --web --con-contrasena   URL https con contraseña generada (recomendado)
+        --web --contrasena <tu-contraseña>   con una contraseña elegida por ti
         --web --sin-contrasena   URL https abierta: cualquiera con el enlace entra
+
+      ATAJO: dentro de una carpeta, ejecuta 'linkspace' y elige la protección
+      de forma interactiva.
 
       MODO VS CODE ESCRITORIO — enlace vscode:// (el invitado instala VS Code +
       Remote-SSH + Tailscale una sola vez):
