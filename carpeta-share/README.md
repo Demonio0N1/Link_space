@@ -188,6 +188,39 @@ su componente remoto en tu máquina, dentro del home del invitado).
 
 ## Administración diaria
 
+### Panel de conexiones
+
+```bash
+carpeta-share panel     # o: linkspace panel
+```
+
+Un panel interactivo en la terminal que muestra cada carpeta compartida y su
+estado **en vivo**:
+
+```
+════════════════ carpeta-share · panel ════════════════  18:42:10
+
+  CARPETAS COMPARTIDAS
+   1) [WEB] ~/Proyectos/tesis
+        invitado web1       ● EN USO (2 conexión/es)
+        https://mi-equipo.tailxxxx.ts.net/  (contraseña: f52pFbTSLyXR)
+   2) [SSH] ~/Proyectos/datos
+        invitado ana        ○ libre
+
+  INVITADOS
+   3) ana          usuario cs-ana      modo clave    activo
+   4) web1         usuario cs-web1     modo web      activo
+
+  [número] gestionar · [Enter] refrescar · [q] salir
+```
+
+`● EN USO` significa que hay conexiones abiertas en este momento (pestañas
+del navegador en modo web, sesiones SSH en modo escritorio). Eliges un número
+y puedes **cerrar el enlace**, **suspender** (corta las sesiones al instante,
+reversible) o **eliminar al invitado por completo** — sin recordar comandos.
+
+### Comandos sueltos
+
 ```bash
 carpeta-share estado                          # invitados, carpetas, Tailscale/SSH
 carpeta-share dejar-de-compartir <carpeta>    # retira las ACLs

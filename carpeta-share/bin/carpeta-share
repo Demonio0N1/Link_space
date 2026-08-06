@@ -20,7 +20,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="1.1.1"
+VERSION="1.2.0"
 PREFIJO="cs-"                      # prefijo de los usuarios invitados del sistema
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -1191,6 +1191,157 @@ cmd_listar_invitados() {
 }
 
 # =============================================================================
+# Panel interactivo: ver conexiones en vivo y revocar accesos al momento
+# =============================================================================
+conexiones_web() {
+  # Nº de conexiones TCP establecidas hacia el puerto local de code-server.
+  # Cada pestaña de navegador abierta mantiene al menos un websocket, así
+  # que >0 significa "alguien lo tiene abierto ahora".
+  local p="$1" n=0
+  if command -v ss >/dev/null 2>&1; then
+    n="$(ss -Htn state established "sport = :$p" 2>/dev/null | wc -l | tr -d ' ')"
+  else
+    n="$(netstat -an -p tcp 2>/dev/null | awk -v a="127.0.0.1.$p" '$6 == "ESTABLISHED" && $4 == a { c++ } END { print c + 0 }')"
+  fi
+  printf '%d\n' "${n:-0}"
+}
+
+sesiones_ssh() {
+  # Sesiones SSH abiertas del usuario: sshd titula sus procesos como
+  # "sshd: usuario@..." (una por conexión), visibles sin root.
+  local u="$1" n
+  n="$(pgrep -f "sshd.*${u}@" 2>/dev/null | wc -l | tr -d ' ')"
+  printf '%d\n' "${n:-0}"
+}
+
+cmd_panel() {
+  if [[ ! -t 0 ]]; then err "El panel es interactivo: ejecútalo desde una terminal."; fi
+  estado_init
+  local host_ts
+  host_ts="$( (ts_host) 2>/dev/null || echo "?")"
+
+  while :; do
+    # Recolectamos los elementos en arreglos paralelos (compatibles bash 3.2).
+    local TIPOS=() RUTAS=() NOMBRES=() DATOS=()
+    local i=0 linea ruta inv pl pp pw usuario modo susp n url estado sel idx accion
+
+    printf '\033[2J\033[H'
+    printf '════════════════ carpeta-share · panel ════════════════  %s\n\n' "$(date '+%H:%M:%S')"
+
+    printf '  CARPETAS COMPARTIDAS\n'
+    # --- Shares web (con estado de uso en vivo) ------------------------------
+    while IFS='|' read -r ruta inv pl pp pw; do
+      if [[ -z "$ruta" ]]; then continue; fi
+      i=$((i + 1)); TIPOS+=(web); RUTAS+=("$ruta"); NOMBRES+=("$inv"); DATOS+=("$pl")
+      n="$(conexiones_web "$pl")"
+      if [[ "$n" -gt 0 ]]; then
+        estado="$(printf '\033[32m● EN USO (%d conexión/es)\033[0m' "$n")"
+      else
+        estado="○ libre"
+      fi
+      if [[ "$pp" == "443" ]]; then url="https://$host_ts/"; else url="https://$host_ts:$pp/"; fi
+      printf '  %2d) [WEB] %s\n' "$i" "${ruta/#$HOME_REAL/~}"
+      printf '        invitado %-10s %s\n' "$inv" "$estado"
+      if [[ -n "$pw" ]]; then
+        printf '        %s  (contraseña: %s)\n' "$url" "$pw"
+      else
+        printf '        %s  (SIN contraseña)\n' "$url"
+      fi
+    done < <(estado_leer '
+for w in e.get("web", []):
+    print(w["ruta"] + "|" + w["invitado"] + "|" + str(w["puerto_local"]) + "|" + str(w["puerto_publico"]) + "|" + w.get("contrasena", ""))
+')
+
+    # --- Shares SSH (excluye los que ya salieron como web) -------------------
+    while IFS='|' read -r ruta inv; do
+      if [[ -z "$ruta" ]]; then continue; fi
+      i=$((i + 1)); TIPOS+=(ssh); RUTAS+=("$ruta"); NOMBRES+=("$inv"); DATOS+=("")
+      n="$(sesiones_ssh "${PREFIJO}${inv}")"
+      if [[ "$n" -gt 0 ]]; then
+        estado="$(printf '\033[32m● EN USO (%d sesión/es SSH)\033[0m' "$n")"
+      else
+        estado="○ libre"
+      fi
+      printf '  %2d) [SSH] %s\n' "$i" "${ruta/#$HOME_REAL/~}"
+      printf '        invitado %-10s %s\n' "$inv" "$estado"
+    done < <(estado_leer '
+webinv = {w["invitado"] for w in e.get("web", [])}
+for c in e["carpetas"]:
+    if c["invitado"] not in webinv:
+        print(c["ruta"] + "|" + c["invitado"])
+')
+    if [[ $i -eq 0 ]]; then printf '      (ninguna)\n'; fi
+
+    # --- Invitados (para suspender/eliminar aunque no tengan carpeta) --------
+    printf '\n  INVITADOS\n'
+    local j0=$i
+    while IFS='|' read -r inv usuario modo susp; do
+      if [[ -z "$inv" ]]; then continue; fi
+      i=$((i + 1)); TIPOS+=(invitado); RUTAS+=(""); NOMBRES+=("$inv"); DATOS+=("$susp")
+      if [[ "$susp" == "True" ]]; then
+        estado="$(printf '\033[33mSUSPENDIDO\033[0m')"
+      else
+        estado="activo"
+      fi
+      printf '  %2d) %-12s usuario %-12s modo %-8s %s\n' "$i" "$inv" "$usuario" "$modo" "$estado"
+    done < <(estado_leer '
+for n, d in sorted(e["invitados"].items()):
+    print(n + "|" + d.get("usuario", "?") + "|" + d.get("modo", "clave") + "|" + str(d.get("suspendido", False)))
+')
+    if [[ $i -eq $j0 ]]; then printf '      (ninguno)\n'; fi
+
+    printf '\n  [número] gestionar · [Enter] refrescar · [q] salir\n  > '
+    read -r sel
+    case "$sel" in
+      q|Q) break;;
+      "") continue;;
+    esac
+    if ! [[ "$sel" =~ ^[0-9]+$ ]] || [[ "$sel" -lt 1 || "$sel" -gt $i ]]; then continue; fi
+    idx=$((sel - 1))
+
+    printf '\n  Elegiste: %s %s (%s)\n' "${TIPOS[$idx]}" "${RUTAS[$idx]}" "${NOMBRES[$idx]}"
+    case "${TIPOS[$idx]}" in
+      web)
+        printf '  [c] cerrar este enlace (apaga el servidor y la URL)\n'
+        printf '  [e] eliminar el invitado web por completo\n'
+        printf '  [v] volver\n  > '
+        read -r accion
+        case "$accion" in
+          c) "$0" dejar-de-compartir "${RUTAS[$idx]}" --si || true;;
+          e) "$0" invitado eliminar "${NOMBRES[$idx]}" --si || true;;
+        esac;;
+      ssh)
+        printf '  [c] dejar de compartir esta carpeta\n'
+        printf '  [s] suspender al invitado (corta sesiones, reversible)\n'
+        printf '  [e] eliminar al invitado por completo\n'
+        printf '  [v] volver\n  > '
+        read -r accion
+        case "$accion" in
+          c) "$0" dejar-de-compartir "${RUTAS[$idx]}" --con "${NOMBRES[$idx]}" --si || true;;
+          s) "$0" invitado suspender "${NOMBRES[$idx]}" || true;;
+          e) "$0" invitado eliminar "${NOMBRES[$idx]}" --si || true;;
+        esac;;
+      invitado)
+        if [[ "${DATOS[$idx]}" == "True" ]]; then
+          printf '  [r] reactivar\n'
+        else
+          printf '  [s] suspender (corta sesiones, reversible)\n'
+        fi
+        printf '  [e] eliminar por completo\n'
+        printf '  [v] volver\n  > '
+        read -r accion
+        case "$accion" in
+          s) "$0" invitado suspender "${NOMBRES[$idx]}" || true;;
+          r) "$0" invitado reactivar "${NOMBRES[$idx]}" || true;;
+          e) "$0" invitado eliminar "${NOMBRES[$idx]}" --si || true;;
+        esac;;
+    esac
+    printf '\n  [Enter] para volver al panel… '
+    read -r _
+  done
+}
+
+# =============================================================================
 # Ayuda y despacho
 # =============================================================================
 ayuda() {
@@ -1214,6 +1365,11 @@ USO:
         --con <invitado>      con la llave que el invitado ya te dio
         --sin-clave [nombre]  sin llave previa: se genera aquí y te deja un
                               paquete en ~/CarpetaShare-Accesos/ para enviarle
+
+  carpeta-share panel
+      Panel interactivo: ve qué carpetas están compartidas, si alguien las
+      está usando AHORA (conexiones web / sesiones SSH) y cierra accesos,
+      suspende o elimina invitados desde ahí. Atajo: linkspace panel
 
   carpeta-share dejar-de-compartir <carpeta> [--con <invitado>]
   carpeta-share invitado agregar <nombre> "<llave-publica-ssh>"
@@ -1246,6 +1402,7 @@ main() {
     compartir)           cmd_compartir "$@";;
     dejar-de-compartir)  cmd_dejar_de_compartir "$@";;
     estado)              cmd_estado;;
+    panel)               cmd_panel;;
     listar-invitados)    cmd_listar_invitados;;
     invitado)
       local SUB="${1:-}"

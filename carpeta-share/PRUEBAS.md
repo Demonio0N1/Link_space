@@ -33,6 +33,13 @@ máquina (invitado) con su propia cuenta de Tailscale.
 - [ ] `carpeta-share compartir <otra> --web --sin-contrasena` avisa que cualquiera con la URL puede entrar.
 - [ ] `carpeta-share dejar-de-compartir <carpeta>` mata el proceso code-server y la URL pública deja de responder.
 
+### Panel de conexiones
+- [ ] `carpeta-share panel` (o `linkspace panel`) lista las carpetas web y SSH con su invitado, URL y contraseña.
+- [ ] Con el invitado conectado (navegador abierto o sesión SSH activa), el panel muestra `● EN USO` con el número de conexiones; al cerrar el navegador/sesión y refrescar (Enter), pasa a `○ libre`.
+- [ ] Desde el panel, la acción [c] cierra un enlace web (la URL deja de responder al instante).
+- [ ] Desde el panel, [s] suspende a un invitado con sesión abierta y su sesión se corta al momento.
+- [ ] Desde el panel, [e] elimina un invitado por completo (igual que `invitado eliminar --si`).
+
 ### Revocación
 - [ ] `carpeta-share dejar-de-compartir <carpeta>` pide confirmación (y `--si` la salta); tras esto el invitado pierde acceso a la carpeta (verifícalo desde el invitado).
 - [ ] `carpeta-share invitado suspender prueba` cierra la sesión abierta del invitado y bloquea nuevas conexiones.

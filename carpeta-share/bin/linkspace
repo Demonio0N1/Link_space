@@ -19,6 +19,11 @@ if [[ ! -x "$CLI" ]]; then
   exit 1
 fi
 
+# 'linkspace panel' abre el panel de conexiones (ver/cerrar accesos en vivo).
+if [[ "${1:-}" == "panel" ]]; then
+  exec "$CLI" panel
+fi
+
 # Acepta una ruta opcional; sin argumentos comparte la carpeta actual.
 CARPETA="${1:-$PWD}"
 if [[ ! -d "$CARPETA" ]]; then
