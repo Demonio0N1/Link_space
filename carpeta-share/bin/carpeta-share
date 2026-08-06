@@ -20,7 +20,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 PREFIJO="cs-"                      # prefijo de los usuarios invitados del sistema
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
