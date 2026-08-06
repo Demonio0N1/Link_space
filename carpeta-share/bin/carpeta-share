@@ -20,7 +20,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 PREFIJO="cs-"                      # prefijo de los usuarios invitados del sistema
 SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -508,8 +508,10 @@ invitado_crear() {
       mkdir -p "$hinv"
       chown "$u:staff" "$hinv"
     else
+      # Sin ":" en el comentario: el campo GECOS de /etc/passwd usa los dos
+      # puntos como separador y useradd los rechaza.
       useradd --create-home --home-dir "$hinv" --shell /bin/bash \
-        --comment "carpeta-share: $nombre" "$u"
+        --comment "carpeta-share $nombre" "$u"
       passwd -l "$u" >/dev/null                      # bloquea la contraseña (la llave sigue valiendo)
     fi
     chmod 700 "$hinv"                                # su home es privado, ni siquiera legible por otros
