@@ -6,20 +6,23 @@ Comparte carpetas de tu computadora con otras personas mediante un enlace
 entornos de conda y ejecutar notebooks — todo confinado a esa carpeta, sin
 ver el resto de tu sistema.
 
-Hay **dos tipos de enlace**, y el flujo de compartir siempre te deja elegir:
+Hay **tres tipos de enlace**, y el flujo de compartir siempre te deja elegir:
 
-| | Enlace **web** | Enlace **VS Code escritorio** |
-|---|---|---|
-| El invitado instala | **Nada** — abre la URL en su navegador | VS Code + Remote-SSH + Tailscale (una vez) |
-| Protección | Contraseña opcional (**con clave o no**) | Llave SSH (siempre) |
-| Exposición | URL pública en internet (Tailscale Funnel) | Solo tu red privada Tailscale |
-| Experiencia | VS Code en el navegador (code-server) | VS Code nativo de escritorio |
+| | Enlace **web** | Enlace **VS Code escritorio** | Enlace de **solo descarga** |
+|---|---|---|---|
+| Qué recibe el invitado | VS Code en el navegador (code-server) | VS Code nativo de escritorio | El archivo, o la carpeta en un `.zip` |
+| El invitado instala | **Nada** — abre la URL en su navegador | VS Code + Remote-SSH + Tailscale (una vez) | **Nada** — abre la URL y se descarga |
+| Protección | Contraseña opcional (**con clave o no**) | Llave SSH (siempre) | Token único dentro del enlace |
+| Exposición | URL pública en internet (Tailscale Funnel) | Solo tu red privada Tailscale | URL pública (el mismo Funnel) |
+| Acceso a tu equipo | Editor + terminal, confinado a la carpeta | Editor + terminal, confinado a la carpeta | **Ninguno**: solo bajar eso |
 
 **Cómo funciona por dentro:** usuarios invitados dedicados del sistema (sin
 contraseña de login, sin sudo) + ACLs del sistema de archivos; el modo web usa
 code-server publicado con Tailscale Funnel (sin abrir puertos en el router), y
 el modo escritorio usa SSH por llave dentro de Tailscale con enlaces
-`vscode://vscode-remote/ssh-remote+…`.
+`vscode://vscode-remote/ssh-remote+…`. El modo solo descarga no crea usuarios
+ni da terminal: un servidor mínimo de solo lectura, en loopback, publicado en
+la ruta `/dl` de ese mismo Funnel.
 
 ---
 
@@ -102,7 +105,52 @@ Cosas que debes saber del modo web:
 * Si reinicias tu equipo, repite el mismo comando `compartir --web` para
   relanzar el servidor; los permisos y la contraseña se conservan.
 * Hay un máximo de **3 enlaces web simultáneos** (límite de puertos de
-  Funnel: 443, 8443 y 10000).
+  Funnel: 443, 8443 y 10000). Los enlaces de solo descarga no cuentan: van
+  todos por la ruta `/dl` de uno de esos puertos.
+
+### Modo solo descarga — un enlace para bajar y nada más
+
+Para cuando solo quieres **entregar** algo: sin editor, sin terminal y sin
+que nadie entre a tu equipo. Vale para una carpeta (se baja como `.zip`) o
+para un archivo suelto:
+
+```bash
+carpeta-share compartir ~/Proyectos/tesis --descarga         # carpeta → tesis.zip
+carpeta-share compartir ~/Documentos/informe.pdf --descarga  # archivo tal cual
+linkspace descarga                                           # atajo: la carpeta actual
+linkspace descarga ~/Documentos/informe.pdf
+```
+
+Obtienes un enlace único (queda en tu portapapeles), del estilo
+`https://tu-equipo.xxxx.ts.net/dl/Zk3…token…`. Quien lo abre —desde
+cualquier navegador, o con `curl -OJ <enlace>`— recibe la descarga
+directamente. No instala nada y no necesita Tailscale.
+
+Cosas que debes saber del modo solo descarga:
+
+* **El token es la llave**: cualquiera que tenga el enlace puede descargar.
+  Trátalo como una contraseña. Cada archivo o carpeta tiene su propio token;
+  repetir el comando sobre la misma ruta devuelve el mismo enlace.
+* **Reutiliza el Funnel del modo web**: se publica en la ruta `/dl` del puerto
+  que ya use un enlace web tuyo (o, si no hay ninguno, en el primero de Funnel
+  que esté libre: normalmente el 443), así que convive
+  con ellos y no consume ninguno de los 3 puertos de Funnel. Nunca se monta
+  sobre un `tailscale serve` tuyo que no sea de carpeta-share.
+* **La carpeta se comprime al vuelo**, sin archivos temporales, con lo que
+  haya en ese momento: si cambias algo, la próxima descarga ya lo trae. Los
+  enlaces simbólicos que apunten fuera de la carpeta no se incluyen.
+* **No hace falta root** (en macOS): no se crean usuarios ni ACLs. El
+  servidor corre como tú, solo en `127.0.0.1`, y únicamente sabe entregar lo
+  que registraste. En Linux, Tailscale pide `sudo` para tocar Funnel salvo
+  que seas su *operator* (`sudo tailscale set --operator=$USER`).
+* **Revocar** es inmediato: `carpeta-share dejar-de-compartir <ruta>
+  --descarga` (o desde el panel). Al revocar el último enlace se apaga el
+  servidor y se despublica `/dl`.
+* Si reinicias tu equipo, repite `compartir <ruta> --descarga` con cualquiera
+  de tus rutas: relanza el servidor y **todos** los enlaces vuelven a
+  funcionar, con sus mismos tokens.
+* `carpeta-share estado` y el panel muestran cuántas descargas completas
+  lleva cada enlace (registro en `~/.config/carpeta-share/descargas.log`).
 
 ### Modo VS Code escritorio
 
@@ -148,8 +196,13 @@ que el modo A porque la llave privada viaja por tu canal de envío.
 * **Nautilus (Linux):** clic derecho → *Scripts* → **Compartir carpeta con VS
   Code** (en KDE/Dolphin aparece directamente en el menú contextual).
 * **VS Code:** clic derecho sobre una carpeta en el explorador →
-  **Compartir carpeta…** → eliges enlace web (con o sin contraseña),
-  invitado existente o "nuevo acceso sin llave" → el enlace queda copiado.
+  **Compartir carpeta…** → eliges enlace web (con o sin contraseña), solo
+  descarga, invitado existente o "nuevo acceso sin llave" → el enlace queda
+  copiado. Sobre un **archivo**: clic derecho → **Compartir enlace de
+  descarga…**
+
+En Finder y Nautilus el menú de opciones incluye también **Enlace de SOLO
+DESCARGA (.zip)**.
 
 En todos los casos el enlace queda **copiado en tu portapapeles**, listo para
 WhatsApp o correo.
@@ -160,6 +213,9 @@ WhatsApp o correo.
 
 **Enlace web: nada.** Abre la URL en su navegador y escribe la contraseña si
 el enlace la lleva. Eso es todo.
+
+**Enlace de solo descarga: nada.** Abre la URL y el navegador descarga el
+archivo (o el `.zip` de la carpeta).
 
 **Enlace VS Code escritorio** (una sola vez):
 
@@ -206,10 +262,13 @@ estado **en vivo**:
         https://mi-equipo.tailxxxx.ts.net/  (contraseña: f52pFbTSLyXR)
    2) [SSH] ~/Proyectos/datos
         invitado ana        ○ libre
+   3) [DESCARGA] ~/Documentos/informe.pdf
+        archivo · 4 descarga/s completada/s
+        https://mi-equipo.tailxxxx.ts.net/dl/Zk3vQ…
 
   INVITADOS
-   3) ana          usuario cs-ana      modo clave    activo
-   4) web1         usuario cs-web1     modo web      activo
+   4) ana          usuario cs-ana      modo clave    activo
+   5) web1         usuario cs-web1     modo web      activo
 
   [número] gestionar · [Enter] refrescar · [q] salir
 ```
@@ -217,13 +276,15 @@ estado **en vivo**:
 `● EN USO` significa que hay conexiones abiertas en este momento (pestañas
 del navegador en modo web, sesiones SSH en modo escritorio). Eliges un número
 y puedes **cerrar el enlace**, **suspender** (corta las sesiones al instante,
-reversible) o **eliminar al invitado por completo** — sin recordar comandos.
+reversible), **eliminar al invitado por completo** o **revocar un enlace de
+descarga** — sin recordar comandos.
 
 ### Comandos sueltos
 
 ```bash
 carpeta-share estado                          # invitados, carpetas, Tailscale/SSH
-carpeta-share dejar-de-compartir <carpeta>    # retira las ACLs
+carpeta-share dejar-de-compartir <carpeta>    # retira las ACLs (y su enlace de descarga)
+carpeta-share dejar-de-compartir <ruta> --descarga   # revoca solo el enlace de descarga
 carpeta-share invitado suspender ana          # corta el acceso (reversible)
 carpeta-share invitado reactivar ana
 carpeta-share invitado eliminar ana           # borra usuario, ACLs y bloque sshd
@@ -250,7 +311,19 @@ Las acciones destructivas piden confirmación; añade `--si` para saltarla.
 * `carpeta-share dejar-de-compartir <carpeta>` apaga el servidor **y**
   despublica la URL de Funnel al instante.
 
-**Lo que NO puede hacer (ambos modos):**
+**Seguridad específica del modo solo descarga:**
+
+* El enlace **solo permite descargar** lo que registraste para ese token: no
+  hay editor, terminal, subida de archivos ni listado de carpetas. La URL no
+  lleva rutas —solo el token—, así que no existe forma de pedir otro archivo.
+* El token (192 bits aleatorios) es la única barrera, y la URL es alcanzable
+  desde todo internet. No hay contraseña aparte: si el enlace se filtra,
+  revócalo y genera otro.
+* El servidor corre como **tu** usuario (nunca como root), escucha solo en
+  `127.0.0.1` y relee el estado en cada petición: un enlace revocado deja de
+  funcionar en el acto.
+
+**Lo que NO puede hacer (modos web y escritorio):**
 
 * Entrar con contraseña de sistema (no existe: los usuarios invitados tienen
   el login bloqueado; en SSH además sshd la rechaza).

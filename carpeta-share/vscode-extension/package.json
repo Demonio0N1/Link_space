@@ -1,8 +1,8 @@
 {
   "name": "carpeta-share",
   "displayName": "Carpeta Share",
-  "description": "Comparte carpetas por SSH/Tailscale con un enlace vscode:// (usa el CLI carpeta-share)",
-  "version": "1.0.0",
+  "description": "Comparte carpetas con un enlace: VS Code web, VS Code de escritorio (SSH/Tailscale) o solo descarga (usa el CLI carpeta-share)",
+  "version": "1.3.0",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -18,6 +18,10 @@
       {
         "command": "carpetaShare.compartir",
         "title": "Compartir carpeta…"
+      },
+      {
+        "command": "carpetaShare.descarga",
+        "title": "Compartir enlace de descarga…"
       }
     ],
     "menus": {
@@ -25,6 +29,11 @@
         {
           "command": "carpetaShare.compartir",
           "when": "explorerResourceIsFolder",
+          "group": "7_modification"
+        },
+        {
+          "command": "carpetaShare.descarga",
+          "when": "!explorerResourceIsFolder",
           "group": "7_modification"
         }
       ]

@@ -20,11 +20,14 @@ if [[ ! -x "$CLI" ]]; then
 fi
 
 # Subcomandos que delegan en el CLI:
-#   linkspace panel       → panel de conexiones (ver/cerrar accesos en vivo)
-#   linkspace actualizar  → git pull + reinstalar la última versión
+#   linkspace panel             → panel de conexiones (ver/cerrar accesos en vivo)
+#   linkspace actualizar        → git pull + reinstalar la última versión
+#   linkspace descarga [ruta]   → enlace de SOLO DESCARGA de un archivo o de una
+#                                 carpeta (en .zip); sin ruta, la carpeta actual
 case "${1:-}" in
   panel)              exec "$CLI" panel;;
   actualizar|update)  exec "$CLI" actualizar;;
+  descarga)           exec "$CLI" compartir "${2:-$PWD}" --descarga;;
 esac
 
 # Acepta una ruta opcional; sin argumentos comparte la carpeta actual.
