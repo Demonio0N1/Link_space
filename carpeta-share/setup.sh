@@ -14,6 +14,7 @@ es_macos() { [[ "$SO" == "Darwin" ]]; }
 
 DESTINO_CLI="/usr/local/bin/carpeta-share"
 DESTINO_LINKSPACE="/usr/local/bin/linkspace"
+DESTINO_DESCARGAS="/usr/local/bin/carpeta-share-descargas"   # servidor del modo solo descarga
 WF_DIR="$HOME/Library/Services/Compartir carpeta con VS Code.workflow"
 NAUTILUS_SCRIPT="$HOME/.local/share/nautilus/scripts/Compartir carpeta con VS Code"
 DOLPHIN_MENU="$HOME/.local/share/kio/servicemenus/carpeta-share.desktop"
@@ -46,8 +47,14 @@ if [[ "${1:-}" == "--uninstall" ]]; then
       echo "$restantes" | while read -r n; do [[ -n "$n" ]] && echo "    carpeta-share invitado eliminar $n"; done
       err "Desinstalación detenida para no dejar accesos huérfanos."
     fi
+    descargas="$("$DESTINO_CLI" listar-descargas 2>/dev/null || true)"
+    if [[ -n "$descargas" ]]; then
+      aviso "Aún hay enlaces de descarga activos. Revócalos primero (apaga el servidor y despublica la URL):"
+      echo "$descargas" | while read -r r; do [[ -n "$r" ]] && echo "    carpeta-share dejar-de-compartir \"$r\" --descarga"; done
+      err "Desinstalación detenida para no dejar enlaces públicos huérfanos."
+    fi
   fi
-  sudo rm -f "$DESTINO_CLI" "$DESTINO_LINKSPACE" && ok "CLI y linkspace eliminados."
+  sudo rm -f "$DESTINO_CLI" "$DESTINO_LINKSPACE" "$DESTINO_DESCARGAS" && ok "CLI y linkspace eliminados."
   rm -rf "$WF_DIR" && ok "Quick Action de Finder eliminada."
   rm -f "$NAUTILUS_SCRIPT" "$DOLPHIN_MENU" 2>/dev/null || true
   if CODE="$(buscar_code)"; then
@@ -72,6 +79,7 @@ if [[ "${1:-}" == "--actualizar" ]]; then
   fi
   sudo install -m 0755 "$AQUI/bin/carpeta-share" "$DESTINO_CLI"
   sudo install -m 0755 "$AQUI/bin/linkspace" "$DESTINO_LINKSPACE"
+  sudo install -m 0755 "$AQUI/bin/carpeta-share-descargas" "$DESTINO_DESCARGAS"
   mkdir -p "$HOME/.config/carpeta-share"
   printf '%s\n' "$AQUI" > "$HOME/.config/carpeta-share/ruta_instalacion"
   # Extensión de VS Code: recompilar e instalar en silencio si se puede.
@@ -182,6 +190,7 @@ fi
 info "Instalando CLI en $DESTINO_CLI…"
 sudo install -m 0755 "$AQUI/bin/carpeta-share" "$DESTINO_CLI"
 sudo install -m 0755 "$AQUI/bin/linkspace" "$DESTINO_LINKSPACE"
+sudo install -m 0755 "$AQUI/bin/carpeta-share-descargas" "$DESTINO_DESCARGAS"
 mkdir -p "$HOME/.config/carpeta-share"
 [[ -f "$HOME/.config/carpeta-share/estado.json" ]] || printf '{"invitados": {}, "carpetas": [], "config": {}}\n' > "$HOME/.config/carpeta-share/estado.json"
 # Recordamos dónde vive el repo para que 'carpeta-share actualizar' funcione
@@ -465,6 +474,10 @@ Próximos pasos:
           carpeta-share compartir ~/Proyectos/algo --web --con-contrasena
         La primera vez, Tailscale te pedirá habilitar Funnel y HTTPS en tu
         tailnet (te muestra el enlace del panel; es un clic, una sola vez).
+      * SOLO DESCARGA (enlace único para BAJAR un archivo, o una carpeta en
+        .zip; quien lo abre no instala nada ni entra a tu equipo):
+          carpeta-share compartir ~/Proyectos/algo --descarga
+        o el atajo:  linkspace descarga ~/Documentos/informe.pdf
       * MODO VS CODE ESCRITORIO (más seguro; el invitado instala VS Code +
         Remote-SSH + Tailscale una vez):
           carpeta-share compartir ~/Proyectos/algo --sin-clave
